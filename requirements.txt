@@ -1,0 +1,7 @@
+django
+djangorestframework
+mysqlclient
+coverage
+pytz
+pandas
+scipy
