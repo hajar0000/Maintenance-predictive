@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import ErrorCountByMachineView
 from .views import MaintenanceCountByMachineView
+from .views import FailureDistributionView
 from .views import (
     ErrorListCreateView,
     FailureListCreateView,
@@ -21,6 +22,7 @@ urlpatterns = [
 
     path('failures/', FailureListCreateView.as_view(), name='failure-list-create'),
     path('failures/<int:pk>/', FailureListCreateView.as_view(), name='failure-detail'),
+    path('failure-distribution/', FailureDistributionView.as_view(), name='failure-distribution'),
     
 
     path('machines/', MachineListCreateView.as_view(), name='machine-list-create'),

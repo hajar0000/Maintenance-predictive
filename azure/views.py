@@ -258,4 +258,66 @@ class MaintenanceCountByMachineView(APIView):
         return Response(maintenance_counts)
     
 
-    
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.http import JsonResponse
+from .models import Failure
+from .serializers import FailureSerializer
+from rest_framework.permissions import IsAuthenticated
+import numpy as np
+from scipy.stats import kstest, norm, expon, weibull_min, uniform
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.http import JsonResponse
+from .models import Failure
+from .serializers import FailureSerializer
+from rest_framework.permissions import IsAuthenticated
+import numpy as np
+from scipy.stats import kstest, norm, expon, weibull_min, uniform
+from datetime import datetime
+
+class FailureDistributionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        machine_id = request.query_params.get('machine_id')
+        if machine_id is None:
+            return Response({'error': 'Machine ID is required'}, status=400)
+        
+        failures = Failure.objects.filter(machine_id=machine_id).order_by('datetime')
+        if not failures.exists():
+            return Response({'error': 'No failures found for this machine'}, status=404)
+
+        serializer = FailureSerializer(failures, many=True)
+        
+        # Convert datetime string to datetime objects and then to timestamps
+        timestamps = np.array([datetime.fromisoformat(failure['datetime']).timestamp() for failure in serializer.data])
+
+        # Test for Normal distribution
+        mu, std = norm.fit(timestamps)
+        stat_norm, p_norm = kstest(timestamps, 'norm', args=(mu, std))
+        
+        # Test for Exponential distribution
+        stat_exp, p_exp = kstest(timestamps, expon.cdf)
+        
+        # Test for Weibull distribution
+        shape_weib, loc_weib, scale_weib = weibull_min.fit(timestamps)
+        stat_weib, p_weib = kstest(timestamps, 'weibull_min', args=(shape_weib, loc_weib, scale_weib))
+        
+        # Test for Uniform distribution
+        stat_uni, p_uni = kstest(timestamps, uniform.cdf)
+        
+        distributions = [
+            {'name': 'Normale', 'p_value': p_norm},
+            {'name': 'Exponentielle', 'p_value': p_exp},
+            {'name': 'Weibull', 'p_value': p_weib},
+            {'name': 'Uniforme', 'p_value': p_uni}
+        ]
+        
+        return JsonResponse({
+            'distributions': distributions,
+            'failures': serializer.data
+        })

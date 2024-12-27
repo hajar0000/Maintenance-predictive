@@ -1,0 +1,127 @@
+"""
+import pandas as pd
+from scipy.stats import kstest, expon, uniform, poisson
+
+# Chemin du fichier
+base_path = ''
+failure_file = base_path + 'PdM_failures.csv'
+
+# Chargement des données
+failure_data = pd.read_csv(failure_file)
+
+# Convertir la colonne datetime en format datetime
+failure_data['datetime'] = pd.to_datetime(failure_data['datetime'])
+
+# Choisir un machineID spécifique pour le test, par exemple machineID 1
+machine_id = 1
+machine_failures = failure_data[failure_data['machineID'] == machine_id]
+
+# Extraire les timestamps des pannes
+timestamps = machine_failures['datetime'].values.astype('datetime64[s]').astype(float)
+
+# Test pour une distribution exponentielle
+stat_exp, p_exp = kstest(timestamps, expon.cdf)
+print('Test KS pour une distribution exponentielle:')
+print('Statistique KS:', stat_exp)
+print('Valeur p:', p_exp)
+
+# Test pour une distribution uniforme
+stat_uni, p_uni = kstest(timestamps, uniform.cdf)
+print('Test KS pour une distribution uniforme:')
+print('Statistique KS:', stat_uni)
+print('Valeur p:', p_uni)
+
+# Test pour une distribution de Poisson
+# Note: Poisson requires discrete values, so we should test count of failures rather than timestamps
+# Supposons un taux lambda moyen basé sur le nombre de pannes
+lambda_estimate = len(timestamps) / (timestamps.max() - timestamps.min())
+stat_pois, p_pois = kstest(timestamps, poisson.cdf, args=(lambda_estimate,))
+print('Test KS pour une distribution de Poisson:')
+print('Statistique KS:', stat_pois)
+print('Valeur p:', p_pois)
+
+from scipy.stats import gamma, lognorm
+
+# Test pour une distribution gamma
+shape_gamma, loc_gamma, scale_gamma = gamma.fit(timestamps)
+stat_gamma, p_gamma = kstest(timestamps, 'gamma', args=(shape_gamma, loc_gamma, scale_gamma))
+print('Test KS pour une distribution gamma:')
+print('Statistique KS:', stat_gamma)
+print('Valeur p:', p_gamma)
+
+# Test pour une distribution log-normale
+shape_lognorm, loc_lognorm, scale_lognorm = lognorm.fit(timestamps)
+stat_lognorm, p_lognorm = kstest(timestamps, 'lognorm', args=(shape_lognorm, loc_lognorm, scale_lognorm))
+print('Test KS pour une distribution log-normale:')
+print('Statistique KS:', stat_lognorm)
+print('Valeur p:', p_lognorm)
+
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+
+# Créer un graphique des pannes au cours du temps
+plt.figure(figsize=(12, 6))
+plt.plot(failure_data['datetime'], failure_data['failure'], 'o', markersize=3, label='Pannes')
+plt.xlabel('Temps')
+plt.ylabel('Type de Panne')
+plt.title('Distribution des Pannes au Cours du Temps')
+plt.legend()
+plt.show()
+"""
+import pandas as pd
+from scipy.stats import kstest, norm, expon, weibull_min, uniform
+import matplotlib.pyplot as plt
+
+# Chemin du fichier
+base_path = ''
+failure_file = base_path + 'PdM_failures.csv'
+
+# Chargement des données
+failure_data = pd.read_csv(failure_file)
+
+# Convertir la colonne datetime en format datetime
+failure_data['datetime'] = pd.to_datetime(failure_data['datetime'])
+
+# Choisir un machineID spécifique pour le test, par exemple machineID 1
+machine_id = 1
+machine_failures = failure_data[failure_data['machineID'] == machine_id]
+
+# Extraire les timestamps des pannes
+timestamps = machine_failures['datetime'].values.astype('datetime64[s]').astype(float)
+
+# Test pour une distribution normale
+mu, std = norm.fit(timestamps)
+stat_norm, p_norm = kstest(timestamps, 'norm', args=(mu, std))
+print('Test KS pour une distribution normale:')
+print('Statistique KS:', stat_norm)
+print('Valeur p:', p_norm)
+
+# Test pour une distribution exponentielle
+stat_exp, p_exp = kstest(timestamps, expon.cdf)
+print('Test KS pour une distribution exponentielle:')
+print('Statistique KS:', stat_exp)
+print('Valeur p:', p_exp)
+
+# Test pour une distribution de Weibull
+shape_weib, loc_weib, scale_weib = weibull_min.fit(timestamps)
+stat_weib, p_weib = kstest(timestamps, 'weibull_min', args=(shape_weib, loc_weib, scale_weib))
+print('Test KS pour une distribution de Weibull:')
+print('Statistique KS:', stat_weib)
+print('Valeur p:', p_weib)
+
+# Test pour une distribution uniforme
+stat_uni, p_uni = kstest(timestamps, uniform.cdf)
+print('Test KS pour une distribution uniforme:')
+print('Statistique KS:', stat_uni)
+print('Valeur p:', p_uni)
+
+# Plot failures over time
+plt.figure(figsize=(12, 6))
+plt.plot(failure_data['datetime'], failure_data['failure'], 'o', markersize=3, label='Pannes')
+plt.xlabel('Temps')
+plt.ylabel('Type de Panne')
+plt.title('Distribution des Pannes au Cours du Temps')
+plt.legend()
+plt.show()

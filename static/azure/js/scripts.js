@@ -213,6 +213,25 @@ function fetchMaintenanceData(machineId, callback) {
         })
         .catch(error => console.error('Error fetching data:', error));
 }
+// Fetch data and render chart
+function fetchFailureDistribution(machineId) {
+    fetch(`http://127.0.0.1:8000/azure/failure-distribution/?machine_id=${machineId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.failures) {
+                renderChart(data);
+                renderDistributionScores(data.distributions);
+            } else {
+                console.error('No failure data found:', data);
+            }
+        })
+        .catch(error => console.error('Error fetching failure distribution data:', error));
+}
 
 function updateGraphs() {
     const machineId = document.getElementById('machine-id').value;  // Récupérer l’ID de la machine
@@ -220,11 +239,101 @@ function updateGraphs() {
         fetchTelemetryData(machineId, renderTelemetryData);
         fetcherrorData(machineId, rendererrorData);
         fetchMaintenanceData(machineId, renderMaintenanceData); // Appel pour les maintenances
+        fetchFailureDistribution(machineId);
     } else {
         alert('Please enter a machine ID');
     }
 }
 
+// Function to render chart
+function renderChart(data) {
+    const chartDom = document.getElementById('graph8-chart');
+    const myChart = echarts.init(chartDom);
+    
+    const scatterData = data.failures.map(f => {
+        const date = new Date(f.datetime);
+        let failureType;
+
+        switch (f.failure) {
+            case 'comp1': failureType = 'comp1'; break;
+            case 'comp2': failureType = 'comp2'; break;
+            case 'comp3': failureType = 'comp3'; break;
+            case 'comp4': failureType = 'comp4'; break;
+            default: failureType = 'Unknown';
+        }
+
+        return [date, failureType];
+    });
+
+    const option = {
+        title: {
+            text: 'Distribution des pannes',
+            textStyle: {
+                fontSize: 11 // Adjust this value as needed
+            }
+        },
+        tooltip: {
+            position: 'top',
+            formatter: function (params) {
+                return `${params.value[0].toLocaleDateString()} - ${params.value[1]}`;
+            },
+            nameTextStyle: {
+                fontSize: 8  // Taille de la police du nom de l'axe y
+            }
+
+        },
+        grid: {
+            left: '3%',
+            bottom: '3%',
+            right: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'time',
+            name: 'Date',
+            splitLine: {
+                show: true
+            },
+            axisLabel: {
+                textStyle: {
+                    fontSize: 8  // Adjust as needed
+                }
+            },
+        },
+        yAxis: {
+            type: 'category',
+            name: 'Type de Panne',
+            data: ['comp1', 'comp2', 'comp3', 'comp4'],
+            axisLabel: {
+                textStyle: {
+                    fontSize: 8  // Adjust as needed
+                }
+            },
+            nameTextStyle: {
+                fontSize: 8  // Taille de la police du nom de l'axe y
+            }
+        },
+        series: [
+            {
+                name: 'Pannes',
+                type: 'scatter',
+                symbolSize: 20,
+                data: scatterData,
+                animationDelay: function (idx) {
+                    return idx * 5;
+                }
+            }
+        ]
+    };
+
+    myChart.setOption(option);
+}
+
+// Function to render distribution scores
+function renderDistributionScores(distributions) {
+    const scoresContainer = document.getElementById('distribution-scores');
+    scoresContainer.innerHTML = distributions.map(d => `${d.name} (p-value = ${d.p_value.toFixed(4)})`).join('<br>');
+}
 
 // Function to render the telemetry data using ECharts
 function rendererrorData(data) {
@@ -237,6 +346,9 @@ function rendererrorData(data) {
           trigger: 'axis',
           axisPointer: {
             type: 'shadow'
+          },
+          nameTextStyle: {
+            fontSize: 8  // Taille de la police du nom de l'axe y
           }
         },
         title: {
@@ -251,13 +363,26 @@ function rendererrorData(data) {
             name: 'Error Type',
             nameTextStyle: {
                 fontSize: 8
-            }
+            },
+            axisLabel: {
+                textStyle: {
+                    fontSize: 8  // Adjust as needed
+                }
+            },
         },
         yAxis: {
             type: 'value',
             name: 'Count',
             nameTextStyle: {
                 fontSize: 8
+            },
+            axisLabel: {
+                textStyle: {
+                    fontSize: 8  // Adjust as needed
+                }
+            },
+            nameTextStyle: {
+                fontSize: 8  // Taille de la police du nom de l'axe y
             }
         },
         series: [{
@@ -281,7 +406,10 @@ function renderMaintenanceData(data) {
     const option = {
         tooltip: {
             trigger: 'item',
-            formatter: '{b}: {c} ({d}%)' // Amélioration du format de tooltip
+            formatter: '{b}: {c} ({d}%)', // Amélioration du format de tooltip
+            nameTextStyle: {
+                fontSize: 8  // Taille de la police du nom de l'axe y
+            }
         },
         title: {
             text: 'Maintenance Count by Type',
