@@ -216,8 +216,17 @@ class TelemetryListCreateView(ListAPIView):
 
 from django.shortcuts import render
 
+from django.shortcuts import render
+
+# Vue pour la page globale
+def global_view(request):
+    return render(request, 'azure/global.html')
+
+# Vue pour la page vis
 def vis(request):
     return render(request, 'azure/vis.html')
+
+
 
 from django.db.models import Count
 from rest_framework.views import APIView
@@ -321,3 +330,146 @@ class FailureDistributionView(APIView):
             'distributions': distributions,
             'failures': serializer.data
         })
+
+import pandas as pd
+import numpy as np
+import joblib
+from datetime import datetime
+from django.http import JsonResponse
+from django.shortcuts import render
+from sklearn.preprocessing import MinMaxScaler
+from .models import Telemetry, Machine
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Example dataset to fit the scaler
+example_data = pd.DataFrame({
+    'age': [0, 21],
+    'volt': [100, 240],
+    'rotate': [0, 500],
+    'pressure': [0, 200],
+    'vibration': [0, 50],
+    'time_step': [1, 10]
+})
+scaler = MinMaxScaler()
+scaler.fit(example_data)
+
+def machine_predictions_view(request):
+    logger.info("Machine predictions view called")
+
+    try:
+        # Load the pre-trained model
+        logger.info("Loading model")
+        linear_model = joblib.load('D:/django/man/linear_model.pkl')
+        logger.info("Model loaded successfully")
+
+        # Fetch all machines
+        machines = Machine.objects.all()
+        results = []
+
+        for machine in machines:
+            try:
+                logger.info(f"Processing machine: {machine.machineID}")
+                
+                # Fetch the latest telemetry data for the current machine
+                latest_telemetry = Telemetry.objects.filter(machine=machine.machineID).latest('datetime')
+                logger.info(f"Latest telemetry data for machine {machine.machineID}: {latest_telemetry}")
+
+                # Prepare the data for prediction
+                telemetry_data = {
+                    'datetime': [latest_telemetry.datetime],
+                    'age': [machine.age],
+                    'volt': [latest_telemetry.volt],
+                    'rotate': [latest_telemetry.rotate],
+                    'pressure': [latest_telemetry.pressure],
+                    'vibration': [latest_telemetry.vibration]
+                }
+                new_data = pd.DataFrame(telemetry_data)
+                logger.info(f"New data prepared for machine {machine.machineID}: {new_data}")
+
+                # Convert datetime values to timestamps and calculate time_step
+                new_data['timestamp'] = new_data['datetime'].apply(lambda x: datetime.timestamp(x))
+                new_data['time_step'] = [1]
+                logger.info(f"Data with timestamps and time_step for machine {machine.machineID}: {new_data}")
+
+                # Normalize the data using pre-fitted scaler
+                new_data_normalized = scaler.transform(new_data[['age', 'volt', 'rotate', 'pressure', 'vibration', 'time_step']])
+                logger.info(f"Data normalized for machine {machine.machineID}: {new_data_normalized}")
+
+                # Log the input to the model
+                logger.info(f"Input to model for machine {machine.machineID}: {new_data_normalized}")
+
+                # Make the prediction
+                prediction = linear_model.predict(new_data_normalized)
+                seconds_to_fail = prediction[0]
+                logger.info(f"Prediction for machine {machine.machineID}: {seconds_to_fail}")
+
+                # Add prediction details to the results
+                results.append({
+                    'machine_id': machine.machineID,
+                    'seconds_to_fail': seconds_to_fail,
+                    'time_step': new_data['time_step'].tolist()
+                })
+            except Exception as e:
+                logger.error(f"Error processing machine {machine.machineID}: {e}")
+                continue
+
+        # Sort results by time to fail
+        results.sort(key=lambda x: x['seconds_to_fail'])
+
+        return JsonResponse({'predictions': results})
+    except Exception as e:
+        logger.error(f"Error in machine predictions view: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+from django.utils import timezone
+from .models import Error
+
+def daily_errors_view(request):
+    today = timezone.now().date()
+    errors_today = Error.objects.filter(datetime__date=today)
+
+    errors_list = [
+        {
+            'machine_id': error.machine.machineID,
+            'timestamp': error.datetime,
+            'error_id': error.errorID
+        }
+        for error in errors_today
+    ]
+
+    return JsonResponse({'errors_today': errors_list})
+
+
+from django.utils import timezone
+from django.db.models import Max, Min
+from .models import Maintenance, Machine
+
+def mtbf_view(request):
+    machines = Machine.objects.all()
+    results = []
+
+    for machine in machines:
+        maintenances = Maintenance.objects.filter(machine=machine.machineID)
+        if maintenances.exists():
+            num_failures = maintenances.count()
+
+            first_maintenance = maintenances.aggregate(Min('datetime'))['datetime__min']
+            last_maintenance = maintenances.aggregate(Max('datetime'))['datetime__max']
+            total_operation_time = (last_maintenance - first_maintenance).total_seconds() / 3600.0
+
+            mtbf = total_operation_time / num_failures
+            failure_rate = num_failures / total_operation_time  # Calcul du taux de défaillance
+
+            # Fiabilité à 1 heure
+            reliability = 2.71828 ** (-failure_rate * 1)  # Utilisation de exp(-λt)
+
+            results.append({
+                'machine_id': machine.machineID,
+                'mtbf': mtbf,
+                'failure_rate': failure_rate,
+                'reliability': reliability
+            })
+    
+    return JsonResponse({'mtbf': results})

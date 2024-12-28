@@ -5,3 +5,7 @@ coverage
 pytz
 pandas
 scipy
+joblib
+scikit-learn
+requests
+

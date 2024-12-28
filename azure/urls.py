@@ -2,6 +2,9 @@ from django.urls import path
 from .views import ErrorCountByMachineView
 from .views import MaintenanceCountByMachineView
 from .views import FailureDistributionView
+from .views import machine_predictions_view
+from .views import daily_errors_view
+from .views import mtbf_view
 from .views import (
     ErrorListCreateView,
     FailureListCreateView,
@@ -9,14 +12,19 @@ from .views import (
     MaintenanceListCreateView,
     TelemetryListCreateView,
     vis,
+    global_view,
+    
 )
 
 urlpatterns = [
-    path('', vis, name='vis'),
+    path('', global_view, name='global'), 
+    path('predictions/', machine_predictions_view, name='machine_predictions'), 
+    path('machine/', vis, name='vis'),
 
     path('errors/', ErrorListCreateView.as_view(), name='error-list-create'),
     path('errors/<int:pk>/', ErrorListCreateView.as_view(), name='error-detail'),
     path('errors/<int:machine_id>/count/', ErrorCountByMachineView.as_view(), name='error-count-by-machine'),
+    path('errors_today/', daily_errors_view, name='daily_errors'),
 
     
 
@@ -31,6 +39,7 @@ urlpatterns = [
     path('maintenances/', MaintenanceListCreateView.as_view(), name='maintenance-list-create'),
     path('maintenances/<int:pk>/', MaintenanceListCreateView.as_view(), name='maintenance-detail'),
     path('maintenances/<int:machine_id>/count/', MaintenanceCountByMachineView.as_view(), name='maintenance-count-by-machine'),
+    path('mtbf/', mtbf_view, name='mtbf'),
 
 
     path('telemetries/', TelemetryListCreateView.as_view(), name='telemetry-list-create'),
